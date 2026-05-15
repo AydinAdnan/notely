@@ -1,0 +1,96 @@
+@import "tailwindcss";
+
+@theme {
+  --color-neu-bg: #FFFDF5;
+  --color-neu-bg-warm: #f5f0e8;
+  --color-neu-yellow: #FFD23F;
+  --color-neu-pink: #FF6B6B;
+  --color-neu-blue: #74B9FF;
+  --color-neu-green: #88D498;
+  --color-neu-orange: #FFA552;
+  --color-neu-purple: #B8A9FA;
+  --color-neu-cyan: #7FDBDA;
+  --color-neu-red: #FF4444;
+  --color-neu-black: #000000;
+  --color-neu-white: #ffffff;
+
+  --shadow-neu-sm: 3px 3px 0 0 #000;
+  --shadow-neu: 5px 5px 0 0 #000;
+  --shadow-neu-lg: 8px 8px 0 0 #000;
+  --shadow-neu-xl: 12px 12px 0 0 #000;
+
+  --border-width-neu-thick: 4px;
+  --border-width-neu: 3px;
+  --border-width-neu-thin: 2px;
+
+  --font-sans: 'Inter', sans-serif;
+  --font-display: 'Syne', sans-serif;
+  --font-mono: 'Space Mono', monospace;
+}
+
+@layer base {
+  body {
+    @apply bg-neu-bg text-neu-black font-sans selection:bg-neu-yellow;
+    cursor: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20'><rect width='14' height='14' x='3' y='3' fill='%23000' stroke='%23fff' stroke-width='1'/></svg>") 10 10, auto;
+  }
+  
+  a, button, [role='button'], input[type='range'], .cursor-pointer {
+    cursor: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24'><rect width='18' height='18' x='3' y='3' fill='%23FFD23F' stroke='%23000' stroke-width='2'/></svg>") 12 12, pointer !important;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center font-bold px-6 py-3 border-neu border-neu-black bg-neu-white shadow-neu transition-all active:translate-x-[5px] active:translate-y-[5px] active:shadow-none focus-visible:outline-neu-blue focus-visible:outline-4;
+  }
+  .btn-yellow {
+    @apply bg-neu-yellow;
+  }
+  .btn-pink {
+    @apply bg-neu-pink;
+  }
+  .btn-blue {
+    @apply bg-neu-blue;
+  }
+  .btn-green {
+    @apply bg-neu-green;
+  }
+  .card {
+    @apply bg-neu-white border-neu border-neu-black shadow-neu p-6;
+  }
+  .input {
+    @apply w-full px-4 py-3 border-neu border-neu-black bg-neu-white focus:outline-none focus:ring-4 focus:ring-neu-blue/50 placeholder-neu-black/50 font-medium;
+  }
+}
+
+/* TipTap Editor Styles */
+.ProseMirror {
+  @apply outline-none min-h-[50vh];
+}
+.ProseMirror p {
+  @apply mb-4 leading-relaxed;
+}
+.ProseMirror h1 {
+  @apply text-4xl font-bold mb-6 mt-8 font-display;
+}
+.ProseMirror h2 {
+  @apply text-3xl font-bold mb-4 mt-6 font-display;
+}
+.ProseMirror h3 {
+  @apply text-2xl font-bold mb-4 mt-6;
+}
+.ProseMirror ul {
+  @apply list-disc list-inside mb-4 pl-4;
+}
+.ProseMirror ol {
+  @apply list-decimal list-inside mb-4 pl-4;
+}
+.ProseMirror blockquote {
+  @apply border-l-neu-thick border-neu-black pl-4 italic bg-neu-yellow/20 py-2 my-4;
+}
+.ProseMirror pre {
+  @apply bg-neu-black text-neu-white p-4 rounded-none border-neu border-neu-black mb-4 overflow-x-auto;
+}
+.ProseMirror code {
+  @apply bg-neu-yellow/30 px-1 py-0.5 border border-neu-black font-mono text-sm;
+}
