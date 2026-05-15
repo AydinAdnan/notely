@@ -1,61 +1,61 @@
 import secrets
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
 
-from ..database import get_db
-from ..models.models import Note, NotePublicLink
+from ..supabase_client import supabase
 from ..schemas.schemas import PublicLinkOut
 from ..deps import get_current_user
-from ..models.models import User
 
 router = APIRouter(tags=["public"])
 
 
 @router.post("/notes/{note_id}/generate-link", response_model=PublicLinkOut)
-def generate_public_link(
-    note_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    note = db.query(Note).filter(Note.id == note_id, Note.user_id == current_user.id).first()
-    if not note:
+def generate_public_link(note_id: str, current_user: dict = Depends(get_current_user)):
+    note = supabase.table("notes").select("id").eq("id", note_id).eq("user_id", current_user["id"]).limit(1).execute()
+    if not note.data:
         raise HTTPException(status_code=404, detail="Note not found")
-    if note.public_link:
-        return note.public_link
-    link = NotePublicLink(note_id=note.id, token=secrets.token_urlsafe(8))
-    db.add(link)
-    db.commit()
-    db.refresh(link)
-    return link
+
+    existing = supabase.table("note_public_links").select("*").eq("note_id", note_id).limit(1).execute()
+    if existing.data:
+        return existing.data[0]
+
+    result = supabase.table("note_public_links").insert({
+        "note_id": note_id,
+        "token": secrets.token_urlsafe(8),
+    }).execute()
+    return result.data[0]
 
 
 @router.delete("/notes/{note_id}/generate-link", status_code=204)
-def delete_public_link(
-    note_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    note = db.query(Note).filter(Note.id == note_id, Note.user_id == current_user.id).first()
-    if not note:
+def delete_public_link(note_id: str, current_user: dict = Depends(get_current_user)):
+    note = supabase.table("notes").select("id").eq("id", note_id).eq("user_id", current_user["id"]).limit(1).execute()
+    if not note.data:
         raise HTTPException(status_code=404, detail="Note not found")
-    if note.public_link:
-        db.delete(note.public_link)
-        db.commit()
+    supabase.table("note_public_links").delete().eq("note_id", note_id).execute()
 
 
 @router.get("/share/{token}")
-def get_public_note(token: str, db: Session = Depends(get_db)):
-    link = db.query(NotePublicLink).filter(NotePublicLink.token == token).first()
-    if not link:
+def get_public_note(token: str):
+    result = supabase.table("note_public_links").select("*").eq("token", token).limit(1).execute()
+    if not result.data:
         raise HTTPException(status_code=404, detail="Note not found or link is invalid")
-    if link.expires_at and link.expires_at < datetime.utcnow():
-        raise HTTPException(status_code=410, detail="This link has expired")
-    link.view_count += 1
-    db.commit()
+
+    link = result.data[0]
+    if link.get("expires_at"):
+        if datetime.fromisoformat(link["expires_at"]) < datetime.now(timezone.utc):
+            raise HTTPException(status_code=410, detail="This link has expired")
+
+    note_res = supabase.table("notes").select("title, content, created_at").eq("id", link["note_id"]).limit(1).execute()
+    if not note_res.data:
+        raise HTTPException(status_code=404, detail="Note not found")
+
+    new_count = (link.get("view_count") or 0) + 1
+    supabase.table("note_public_links").update({"view_count": new_count}).eq("id", link["id"]).execute()
+
+    note = note_res.data[0]
     return {
-        "title": link.note.title,
-        "content": link.note.content,
-        "view_count": link.view_count,
-        "created_at": link.note.created_at.isoformat(),
+        "title": note["title"],
+        "content": note["content"],
+        "view_count": new_count,
+        "created_at": note["created_at"],
     }

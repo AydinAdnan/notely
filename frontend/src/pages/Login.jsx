@@ -27,7 +27,7 @@ const Login = () => {
       {/* Left side: Login Form */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8 sm:p-12 lg:p-24 relative z-10">
         <div className="w-full max-w-md">
-          <h1 className="text-4xl font-display font-bold mb-3">Notes.app</h1>
+          <h1 className="text-4xl font-display font-bold mb-3">NoteZap</h1>
           <p className="text-gray-500 mb-10 font-medium text-lg">Your workspace for brilliant ideas.</p>
 
           {error && (

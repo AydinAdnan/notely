@@ -25,7 +25,7 @@ const PublicNote = () => {
     <div className="min-h-screen bg-neu-bg p-8">
       <div className="max-w-3xl mx-auto">
         <div className="flex items-center justify-between mb-8">
-          <h1 className="text-2xl font-display font-bold">Notes.app</h1>
+          <h1 className="text-2xl font-display font-bold">NoteZap</h1>
           <Link to="/login" className="btn btn-yellow !px-4 !py-2 !text-sm">
             Sign In to Edit
           </Link>

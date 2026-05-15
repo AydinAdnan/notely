@@ -5,6 +5,21 @@ from datetime import datetime
 import uuid
 
 
+# ── Workspaces ────────────────────────────────────────────────────────────────
+
+class WorkspaceCreate(BaseModel):
+    name: str
+
+class WorkspaceUpdate(BaseModel):
+    name: Optional[str] = None
+
+class WorkspaceOut(BaseModel):
+    id: uuid.UUID
+    user_id: uuid.UUID
+    name: str
+    created_at: datetime
+
+
 # ── Auth ──────────────────────────────────────────────────────────────────────
 
 class UserRegister(BaseModel):
@@ -25,8 +40,6 @@ class UserOut(BaseModel):
     bio: str
     created_at: datetime
 
-    model_config = {"from_attributes": True}
-
 
 class Token(BaseModel):
     access_token: str
@@ -46,6 +59,7 @@ class NoteCreate(BaseModel):
     content: str = ""
     color: str = "bg-neu-yellow"
     is_pinned: bool = False
+    workspace_id: Optional[str] = None
 
 
 class NoteUpdate(BaseModel):
@@ -65,8 +79,7 @@ class NoteOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     public_token: Optional[str] = None
-
-    model_config = {"from_attributes": True}
+    workspace_id: Optional[uuid.UUID] = None
 
 
 class NoteListOut(BaseModel):
@@ -82,14 +95,6 @@ class ShareRequest(BaseModel):
     email: EmailStr
 
 
-class SharedNoteItem(BaseModel):
-    id: str
-    note_id: str
-    note: dict
-    owner: dict
-    created_at: str
-
-
 # ── Public links ──────────────────────────────────────────────────────────────
 
 class PublicLinkOut(BaseModel):
@@ -97,10 +102,8 @@ class PublicLinkOut(BaseModel):
     note_id: uuid.UUID
     token: str
     view_count: int
-    expires_at: Optional[datetime]
+    expires_at: Optional[datetime] = None
     created_at: datetime
-
-    model_config = {"from_attributes": True}
 
 
 # ── AI rewrite ────────────────────────────────────────────────────────────────
@@ -123,5 +126,3 @@ class NoteVersionOut(BaseModel):
     title: str
     content: str
     created_at: datetime
-
-    model_config = {"from_attributes": True}

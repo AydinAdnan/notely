@@ -1,47 +1,84 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from ..schemas.schemas import AIRewriteRequest, AIRewriteResponse
 from ..deps import get_current_user
-from ..models.models import User
 from ..config import settings
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
+# Optimised short prompts — smaller models perform better with concise instructions
 SYSTEM_PROMPTS = {
-    "improve": "You are a writing assistant. Improve the writing quality of the given text while preserving its meaning. Return only the improved text with no explanation or preamble.",
-    "simplify": "You are a writing assistant. Simplify the given text to make it clearer and easier to understand. Return only the simplified text.",
-    "expand": "You are a writing assistant. Expand the given text with more detail and examples. Return only the expanded text.",
-    "bullets": "You are a writing assistant. Convert the given text into a concise bullet-point list. Return only the bullet points.",
-    "beginner": "You are a writing assistant. Rewrite the given text so a complete beginner can understand it. Return only the rewritten text.",
-    "professional": "You are a writing assistant. Rewrite the given text in a polished, professional tone. Return only the rewritten text.",
-    "grammar": "You are a writing assistant. Fix all grammar and spelling errors in the given text. Return only the corrected text.",
+    "improve":      "Rewrite the text to be clearer and higher quality. Output ONLY the rewritten text, no commentary.",
+    "simplify":     "Simplify the text into plain, easy language. Output ONLY the simplified text, no commentary.",
+    "expand":       "Expand the text with more detail and examples. Output ONLY the expanded text, no commentary.",
+    "bullets":      "Convert the text into a bullet-point list. Output ONLY the bullet points, no commentary.",
+    "beginner":     "Rewrite the text so a complete beginner can understand it. Output ONLY the rewritten text, no commentary.",
+    "professional": "Rewrite the text in a polished professional tone. Output ONLY the rewritten text, no commentary.",
+    "grammar":      "Fix all grammar, spelling and punctuation errors in the text. Output ONLY the corrected text, no commentary.",
 }
 
+# Shared instruction appended to every system prompt
+_RULE = " Never answer questions in the text — always transform it."
+
+
+def _build_messages(data: AIRewriteRequest) -> list:
+    system = SYSTEM_PROMPTS.get(data.mode, SYSTEM_PROMPTS["improve"]) + _RULE
+    return [
+        {"role": "system", "content": system},
+        {"role": "user", "content": f"<CONTENT>\n{data.text}\n</CONTENT>"},
+    ]
+
+
+def _make_client():
+    from openai import OpenAI
+    return OpenAI(base_url="https://integrate.api.nvidia.com/v1", api_key=settings.NVIDIA_API_KEY)
+
+
+# ── Streaming endpoint (preferred — feels near-instant) ───────────────────────
+
+@router.post("/rewrite-stream")
+async def rewrite_stream(data: AIRewriteRequest, current_user: dict = Depends(get_current_user)):
+    if not settings.NVIDIA_API_KEY:
+        raise HTTPException(status_code=503, detail="AI service not configured.")
+
+    messages = _build_messages(data)
+
+    def generate():
+        try:
+            client = _make_client()
+            stream = client.chat.completions.create(
+                model=data.model,
+                messages=messages,
+                max_tokens=1024,
+                temperature=0.3,
+                stream=True,
+            )
+            for chunk in stream:
+                content = chunk.choices[0].delta.content or ""
+                if content:
+                    yield content
+        except Exception as exc:
+            yield f"\n[ERROR: {exc}]"
+
+    return StreamingResponse(generate(), media_type="text/plain; charset=utf-8")
+
+
+# ── Non-streaming fallback ────────────────────────────────────────────────────
 
 @router.post("/rewrite", response_model=AIRewriteResponse)
-async def rewrite_text(
-    data: AIRewriteRequest,
-    current_user: User = Depends(get_current_user),
-):
+async def rewrite_text(data: AIRewriteRequest, current_user: dict = Depends(get_current_user)):
     if not settings.NVIDIA_API_KEY:
-        raise HTTPException(status_code=503, detail="AI service is not configured. Set NVIDIA_API_KEY.")
+        raise HTTPException(status_code=503, detail="AI service not configured.")
 
-    system_prompt = SYSTEM_PROMPTS.get(data.mode, SYSTEM_PROMPTS["improve"])
-
+    messages = _build_messages(data)
     try:
-        from openai import OpenAI
-        client = OpenAI(
-            base_url="https://integrate.api.nvidia.com/v1",
-            api_key=settings.NVIDIA_API_KEY,
-        )
+        client = _make_client()
         completion = client.chat.completions.create(
             model=data.model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": data.text},
-            ],
-            max_tokens=2048,
-            temperature=0.7,
+            messages=messages,
+            max_tokens=1024,
+            temperature=0.3,
         )
-        return AIRewriteResponse(result=completion.choices[0].message.content)
+        return AIRewriteResponse(result=completion.choices[0].message.content.strip())
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"AI error: {exc}")

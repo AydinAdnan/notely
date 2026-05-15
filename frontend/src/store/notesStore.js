@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import api from '../lib/api';
+import api, { BASE_URL } from '../lib/api';
 
 const COLORS = ['bg-neu-yellow', 'bg-neu-pink', 'bg-neu-cyan', 'bg-neu-green', 'bg-neu-purple'];
 const randomColor = () => COLORS[Math.floor(Math.random() * COLORS.length)];
@@ -14,6 +14,7 @@ function normalize(n) {
     createdAt: n.created_at,
     updatedAt: n.updated_at,
     publicToken: n.public_token || null,
+    workspaceId: n.workspace_id || null,
   };
 }
 
@@ -21,17 +22,19 @@ const useNotesStore = create((set, get) => ({
   notes: [],
   sharedWithMe: [],
   activeNoteId: null,
-  currentView: 'all', // 'all' | 'shared' | 'public'
+  currentView: 'all', // 'all' | 'recent' | 'shared' | 'public'
   isLoading: false,
   isSaving: false,
   error: null,
 
   // ── Fetch ─────────────────────────────────────────────────────────────────
 
-  fetchNotes: async () => {
+  fetchNotes: async (workspaceId) => {
     set({ isLoading: true });
     try {
-      const res = await api.get('/notes', { params: { page_size: 100 } });
+      const params = { page_size: 100 };
+      if (workspaceId) params.workspace_id = workspaceId;
+      const res = await api.get('/notes', { params });
       set({ notes: res.data.notes.map(normalize), isLoading: false });
     } catch {
       set({ isLoading: false });
@@ -50,9 +53,19 @@ const useNotesStore = create((set, get) => ({
   setActiveNote: (id) => set({ activeNoteId: id }),
   setCurrentView: (view) => set({ currentView: view, activeNoteId: null }),
 
+  // Ensure a note (from search/share result) is in the store
+  upsertNote: (rawNote) => {
+    const normalized = normalize(rawNote);
+    set((s) => ({
+      notes: s.notes.some((n) => n.id === normalized.id)
+        ? s.notes.map((n) => (n.id === normalized.id ? normalized : n))
+        : [normalized, ...s.notes],
+    }));
+  },
+
   // ── CRUD ──────────────────────────────────────────────────────────────────
 
-  addNote: async () => {
+  addNote: async (workspaceId) => {
     const optimistic = {
       id: `temp-${Date.now()}`,
       title: 'Untitled Note',
@@ -62,14 +75,17 @@ const useNotesStore = create((set, get) => ({
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       publicToken: null,
+      workspaceId: workspaceId || null,
     };
     set((s) => ({ notes: [optimistic, ...s.notes], activeNoteId: optimistic.id }));
     try {
-      const res = await api.post('/notes', {
+      const body = {
         title: optimistic.title,
         content: optimistic.content,
         color: optimistic.color,
-      });
+      };
+      if (workspaceId) body.workspace_id = workspaceId;
+      const res = await api.post('/notes', body);
       const real = normalize(res.data);
       set((s) => ({
         notes: s.notes.map((n) => (n.id === optimistic.id ? real : n)),
@@ -81,7 +97,6 @@ const useNotesStore = create((set, get) => ({
   },
 
   updateNote: async (id, updates) => {
-    // Optimistic
     set((s) => ({
       notes: s.notes.map((n) =>
         n.id === id ? { ...n, ...updates, updatedAt: new Date().toISOString() } : n
@@ -184,11 +199,50 @@ const useNotesStore = create((set, get) => ({
     return res.data.result;
   },
 
+  // Streaming version — calls onChunk(partialText) as tokens arrive
+  rewriteTextStream: async (text, mode, onChunk, model = 'meta/llama-3.1-8b-instruct') => {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${BASE_URL}/ai/rewrite-stream`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ text, mode, model }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'AI service error' }));
+      throw new Error(err.detail || 'AI service error');
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let result = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      result += decoder.decode(value, { stream: true });
+      if (result.includes('[ERROR:')) throw new Error(result.replace('[ERROR:', '').replace(']', '').trim());
+      onChunk(result);
+    }
+
+    return result.trim();
+  },
+
   // ── Search ────────────────────────────────────────────────────────────────
 
   searchNotes: async (q) => {
     const res = await api.get('/search', { params: { q } });
     return res.data.results;
+  },
+
+  // ── Workspace sharing ─────────────────────────────────────────────────────
+
+  shareWorkspace: async (workspaceId, email) => {
+    const res = await api.post(`/workspaces/${workspaceId}/share`, { email });
+    return res.data;
   },
 }));
 

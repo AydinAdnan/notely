@@ -1,9 +1,7 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
 from jose import JWTError, jwt
-from .database import get_db
-from .models.models import User
+from .supabase_client import supabase
 from .config import settings
 
 security = HTTPBearer()
@@ -11,8 +9,7 @@ security = HTTPBearer()
 
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db),
-) -> User:
+) -> dict:
     token = credentials.credentials
     try:
         payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
@@ -22,7 +19,7 @@ def get_current_user(
     except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
+    result = supabase.table("users").select("*").eq("id", user_id).limit(1).execute()
+    if not result.data:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
-    return user
+    return result.data[0]

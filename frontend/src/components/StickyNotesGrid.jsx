@@ -1,5 +1,6 @@
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo } from 'react';
 import useNotesStore from '../store/notesStore';
+import useWorkspacesStore from '../store/workspacesStore';
 import { Pin, Trash2, Plus, Users, Globe, Eye } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -91,11 +92,9 @@ const SharedCard = ({ item, index }) => {
 };
 
 const StickyNotesGrid = () => {
-  const { notes, sharedWithMe, activeNoteId, currentView, setActiveNote, deleteNote, togglePin, addNote, fetchNotes, isLoading } = useNotesStore();
-
-  useEffect(() => {
-    fetchNotes();
-  }, []);
+  const { notes, sharedWithMe, currentView, setActiveNote, deleteNote, togglePin, addNote, isLoading } = useNotesStore();
+  const { workspaces, activeWorkspaceId } = useWorkspacesStore();
+  const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId);
 
   const publicNotes = notes.filter((n) => n.publicToken);
   const recentNotes = [...notes].sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)).slice(0, 10);
@@ -113,7 +112,8 @@ const StickyNotesGrid = () => {
       <div className="max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-6 sm:mb-8">
           <h2 className="text-3xl sm:text-4xl font-display font-bold">
-            {currentView === 'all' && 'My Wall'}
+            {currentView === 'workspace' && (activeWorkspace?.name || 'Workspace')}
+            {currentView === 'all' && 'All Notes'}
             {currentView === 'recent' && 'Recent Notes'}
             {currentView === 'shared' && 'Shared with Me'}
             {currentView === 'public' && 'Public Links'}
@@ -129,11 +129,11 @@ const StickyNotesGrid = () => {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-8">
 
-            {/* All notes view */}
-            {currentView === 'all' && (
+            {/* Workspace / All notes view */}
+            {(currentView === 'all' || currentView === 'workspace') && (
               <>
                 <div
-                  onClick={addNote}
+                  onClick={() => addNote(currentView === 'workspace' ? activeWorkspaceId : null)}
                   className="p-6 border-neu-thick border-dashed border-neu-black/30 bg-neu-black/5 hover:bg-neu-yellow/20 hover:border-neu-black hover:border-solid cursor-pointer transition-all flex flex-col items-center justify-center min-h-[250px] shadow-none hover:shadow-neu"
                 >
                   <div className="w-16 h-16 rounded-full bg-neu-white border-neu border-neu-black flex items-center justify-center mb-4 shadow-neu-sm">

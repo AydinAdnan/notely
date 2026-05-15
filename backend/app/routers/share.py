@@ -1,8 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
 
-from ..database import get_db
-from ..models.models import Note, NoteShare, User
+from ..supabase_client import supabase
 from ..schemas.schemas import ShareRequest
 from ..deps import get_current_user
 
@@ -10,104 +8,83 @@ router = APIRouter(tags=["share"])
 
 
 @router.post("/notes/{note_id}/share", status_code=201)
-def share_note(
-    note_id: str,
-    data: ShareRequest,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    note = db.query(Note).filter(Note.id == note_id, Note.user_id == current_user.id).first()
-    if not note:
+def share_note(note_id: str, data: ShareRequest, current_user: dict = Depends(get_current_user)):
+    note = supabase.table("notes").select("id").eq("id", note_id).eq("user_id", current_user["id"]).limit(1).execute()
+    if not note.data:
         raise HTTPException(status_code=404, detail="Note not found")
-    if data.email == current_user.email:
+
+    if data.email == current_user["email"]:
         raise HTTPException(status_code=400, detail="Cannot share a note with yourself")
 
-    target = db.query(User).filter(User.email == data.email).first()
-    if not target:
+    target = supabase.table("users").select("id, email").eq("email", data.email).limit(1).execute()
+    if not target.data:
         raise HTTPException(status_code=404, detail="No user found with that email")
+    target_id = target.data[0]["id"]
 
-    existing = db.query(NoteShare).filter(
-        NoteShare.note_id == note.id,
-        NoteShare.shared_with_user_id == target.id,
-    ).first()
-    if existing:
+    existing = supabase.table("note_shares").select("id").eq("note_id", note_id).eq("shared_with_user_id", target_id).limit(1).execute()
+    if existing.data:
         raise HTTPException(status_code=400, detail="Note already shared with this user")
 
-    db.add(NoteShare(note_id=note.id, owner_id=current_user.id, shared_with_user_id=target.id))
-    db.commit()
+    supabase.table("note_shares").insert({
+        "note_id": note_id,
+        "owner_id": current_user["id"],
+        "shared_with_user_id": target_id,
+    }).execute()
     return {"message": "Note shared successfully"}
 
 
 @router.delete("/notes/{note_id}/share/{user_id}", status_code=204)
-def revoke_share(
-    note_id: str,
-    user_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    note = db.query(Note).filter(Note.id == note_id, Note.user_id == current_user.id).first()
-    if not note:
+def revoke_share(note_id: str, user_id: str, current_user: dict = Depends(get_current_user)):
+    note = supabase.table("notes").select("id").eq("id", note_id).eq("user_id", current_user["id"]).limit(1).execute()
+    if not note.data:
         raise HTTPException(status_code=404, detail="Note not found")
-    share = db.query(NoteShare).filter(
-        NoteShare.note_id == note.id,
-        NoteShare.shared_with_user_id == user_id,
-    ).first()
-    if not share:
-        raise HTTPException(status_code=404, detail="Share not found")
-    db.delete(share)
-    db.commit()
+    supabase.table("note_shares").delete().eq("note_id", note_id).eq("shared_with_user_id", user_id).execute()
 
 
 @router.get("/shared-with-me")
-def get_shared_with_me(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    shares = (
-        db.query(NoteShare)
-        .filter(NoteShare.shared_with_user_id == current_user.id)
-        .all()
-    )
-    return [
-        {
-            "id": str(s.id),
-            "note_id": str(s.note_id),
+def get_shared_with_me(current_user: dict = Depends(get_current_user)):
+    shares = supabase.table("note_shares").select("*").eq("shared_with_user_id", current_user["id"]).execute()
+    result = []
+    for s in (shares.data or []):
+        note_res = supabase.table("notes").select("*, note_public_links(token)").eq("id", s["note_id"]).limit(1).execute()
+        owner_res = supabase.table("users").select("id, email, name").eq("id", s["owner_id"]).limit(1).execute()
+        if not note_res.data:
+            continue
+        note = note_res.data[0]
+        links = note.get("note_public_links") or []
+        result.append({
+            "id": s["id"],
+            "note_id": s["note_id"],
             "note": {
-                "id": str(s.note.id),
-                "title": s.note.title,
-                "content": s.note.content,
-                "color": s.note.color,
-                "is_pinned": s.note.is_pinned,
-                "user_id": str(s.note.user_id),
-                "created_at": s.note.created_at.isoformat(),
-                "updated_at": s.note.updated_at.isoformat(),
-                "public_token": s.note.public_link.token if s.note.public_link else None,
+                "id": note["id"],
+                "title": note["title"],
+                "content": note["content"],
+                "color": note["color"],
+                "is_pinned": note["is_pinned"],
+                "user_id": note["user_id"],
+                "created_at": note["created_at"],
+                "updated_at": note["updated_at"],
+                "public_token": links[0]["token"] if links else None,
             },
-            "owner": {
-                "id": str(s.owner.id),
-                "email": s.owner.email,
-                "name": s.owner.name,
-            },
-            "created_at": s.created_at.isoformat(),
-        }
-        for s in shares
-    ]
+            "owner": owner_res.data[0] if owner_res.data else {},
+            "created_at": s["created_at"],
+        })
+    return result
 
 
 @router.get("/notes/{note_id}/shares")
-def get_note_shares(
-    note_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    note = db.query(Note).filter(Note.id == note_id, Note.user_id == current_user.id).first()
-    if not note:
+def get_note_shares(note_id: str, current_user: dict = Depends(get_current_user)):
+    note = supabase.table("notes").select("id").eq("id", note_id).eq("user_id", current_user["id"]).limit(1).execute()
+    if not note.data:
         raise HTTPException(status_code=404, detail="Note not found")
-    return [
-        {
-            "id": str(s.id),
-            "shared_with": {"id": str(s.shared_with.id), "email": s.shared_with.email, "name": s.shared_with.name},
-            "created_at": s.created_at.isoformat(),
-        }
-        for s in note.shares
-    ]
+
+    shares = supabase.table("note_shares").select("*").eq("note_id", note_id).execute()
+    result = []
+    for s in (shares.data or []):
+        user_res = supabase.table("users").select("id, email, name").eq("id", s["shared_with_user_id"]).limit(1).execute()
+        result.append({
+            "id": s["id"],
+            "shared_with": user_res.data[0] if user_res.data else {},
+            "created_at": s["created_at"],
+        })
+    return result

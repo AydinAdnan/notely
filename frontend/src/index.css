@@ -31,11 +31,13 @@
 @layer base {
   body {
     @apply bg-neu-bg text-neu-black font-sans selection:bg-neu-yellow;
-    cursor: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20'><rect width='14' height='14' x='3' y='3' fill='%23000' stroke='%23fff' stroke-width='1'/></svg>") 10 10, auto;
+    /* Hotspot at (2,2) = top-left of square — cursor extends right/down, never covers text above */
+    cursor: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14'><rect width='10' height='10' x='2' y='2' fill='%23000' stroke='%23fff' stroke-width='1'/></svg>") 2 2, auto;
   }
-  
+
   a, button, [role='button'], input[type='range'], .cursor-pointer {
-    cursor: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24'><rect width='18' height='18' x='3' y='3' fill='%23FFD23F' stroke='%23000' stroke-width='2'/></svg>") 12 12, pointer !important;
+    /* Small yellow square, hotspot at top-left — pointer sits above the option text */
+    cursor: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12'><rect width='9' height='9' x='1' y='1' fill='%23FFD23F' stroke='%23000' stroke-width='1.5'/></svg>") 1 1, pointer !important;
   }
 }
 
@@ -43,18 +45,12 @@
   .btn {
     @apply inline-flex items-center justify-center font-bold px-6 py-3 border-neu border-neu-black bg-neu-white shadow-neu transition-all active:translate-x-[5px] active:translate-y-[5px] active:shadow-none focus-visible:outline-neu-blue focus-visible:outline-4;
   }
-  .btn-yellow {
-    @apply bg-neu-yellow;
-  }
-  .btn-pink {
-    @apply bg-neu-pink;
-  }
-  .btn-blue {
-    @apply bg-neu-blue;
-  }
-  .btn-green {
-    @apply bg-neu-green;
-  }
+  .btn-yellow { @apply bg-neu-yellow; }
+  .btn-pink { @apply bg-neu-pink; }
+  .btn-blue { @apply bg-neu-blue; }
+  .btn-green { @apply bg-neu-green; }
+  .btn-purple { @apply bg-neu-purple; }
+  .btn-white { @apply bg-neu-white; }
   .card {
     @apply bg-neu-white border-neu border-neu-black shadow-neu p-6;
   }
@@ -63,34 +59,109 @@
   }
 }
 
-/* TipTap Editor Styles */
+/* ── TipTap Editor ─────────────────────────────────────────────────────────── */
 .ProseMirror {
-  @apply outline-none min-h-[50vh];
+  outline: none;
+  min-height: 50vh;
+  font-size: 1rem;
+  line-height: 1.75;
+  color: #111;
 }
+
 .ProseMirror p {
-  @apply mb-4 leading-relaxed;
+  margin-bottom: 1rem;
 }
+
 .ProseMirror h1 {
-  @apply text-4xl font-bold mb-6 mt-8 font-display;
+  font-size: 2rem;
+  font-weight: 700;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  font-family: var(--font-display);
+  line-height: 1.2;
 }
+
 .ProseMirror h2 {
-  @apply text-3xl font-bold mb-4 mt-6 font-display;
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  font-family: var(--font-display);
+  line-height: 1.3;
 }
+
 .ProseMirror h3 {
-  @apply text-2xl font-bold mb-4 mt-6;
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
 }
+
+/* Fix invisible bullets — Tailwind preflight resets list-style */
 .ProseMirror ul {
-  @apply list-disc list-inside mb-4 pl-4;
+  list-style-type: disc !important;
+  padding-left: 1.75rem;
+  margin-bottom: 1rem;
 }
+
 .ProseMirror ol {
-  @apply list-decimal list-inside mb-4 pl-4;
+  list-style-type: decimal !important;
+  padding-left: 1.75rem;
+  margin-bottom: 1rem;
 }
+
+.ProseMirror li {
+  display: list-item;
+  margin-bottom: 0.25rem;
+}
+
+.ProseMirror li > p {
+  margin-bottom: 0;
+}
+
+.ProseMirror ul ul,
+.ProseMirror ol ol,
+.ProseMirror ul ol,
+.ProseMirror ol ul {
+  margin-top: 0.25rem;
+  margin-bottom: 0;
+}
+
 .ProseMirror blockquote {
-  @apply border-l-neu-thick border-neu-black pl-4 italic bg-neu-yellow/20 py-2 my-4;
+  border-left: 4px solid #000;
+  padding-left: 1rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  margin: 1rem 0;
+  background: rgba(255, 210, 63, 0.15);
+  font-style: italic;
 }
+
 .ProseMirror pre {
-  @apply bg-neu-black text-neu-white p-4 rounded-none border-neu border-neu-black mb-4 overflow-x-auto;
+  background: #000;
+  color: #fff;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  overflow-x: auto;
+  border: 3px solid #000;
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
 }
+
 .ProseMirror code {
-  @apply bg-neu-yellow/30 px-1 py-0.5 border border-neu-black font-mono text-sm;
+  background: rgba(255, 210, 63, 0.3);
+  padding: 0.125rem 0.25rem;
+  border: 1px solid #000;
+  font-family: var(--font-mono);
+  font-size: 0.875em;
 }
+
+.ProseMirror pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+.ProseMirror strong { font-weight: 700; }
+.ProseMirror em { font-style: italic; }
+
