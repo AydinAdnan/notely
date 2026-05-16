@@ -5,16 +5,21 @@ const useAuthStore = create((set) => ({
   user: null,
   isAuthenticated: false,
   isLoading: false,
+  isInitialized: false,
   error: null,
 
   init: async () => {
     const token = localStorage.getItem('token');
-    if (!token) return;
+    if (!token) {
+      set({ isInitialized: true });
+      return;
+    }
     try {
       const res = await api.get('/auth/me');
-      set({ user: res.data, isAuthenticated: true });
+      set({ user: res.data, isAuthenticated: true, isInitialized: true });
     } catch {
       localStorage.removeItem('token');
+      set({ isInitialized: true });
     }
   },
 

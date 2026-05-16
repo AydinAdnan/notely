@@ -61,16 +61,21 @@ const NoteCard = ({ note, index, onOpen, onDelete, onPin, readOnly = false }) =>
 
 // Shared-with-me card (read-only, different shape)
 const SharedCard = ({ item, index }) => {
-  const { setActiveNote } = useNotesStore();
+  const { setActiveNote, upsertNote } = useNotesStore();
   const note = item.note;
   const tilt = useMemo(() => {
     const tilts = ['rotate-[-2deg]', 'rotate-[2deg]', 'rotate-[-1deg]', 'rotate-[1deg]', 'rotate-0'];
     return tilts[index % tilts.length];
   }, [index]);
 
+  const handleOpen = () => {
+    upsertNote(note);
+    setActiveNote(note.id);
+  };
+
   return (
     <div
-      onClick={() => setActiveNote(note.id)}
+      onClick={handleOpen}
       className={clsx(
         'p-6 border-neu border-neu-black shadow-neu cursor-pointer transition-transform hover:z-10 hover:scale-105 flex flex-col min-h-[250px]',
         note.color || 'bg-neu-cyan',
