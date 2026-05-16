@@ -7,7 +7,9 @@ from ..limiter import limiter
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
-# Optimised short prompts — smaller models perform better with concise instructions
+# llama-3.2-3b is ~3x faster than 8b with comparable quality for short rewrites
+DEFAULT_MODEL = "meta/llama-3.2-3b-instruct"
+
 SYSTEM_PROMPTS = {
     "improve":      "Rewrite the text to be clearer and higher quality. Output ONLY the rewritten text, no commentary.",
     "simplify":     "Simplify the text into plain, easy language. Output ONLY the simplified text, no commentary.",
@@ -19,7 +21,7 @@ SYSTEM_PROMPTS = {
 }
 
 _RULE = " Never answer questions in the text — always transform it."
-AI_TIMEOUT = 30  # seconds
+AI_TIMEOUT = 30
 
 
 def _build_messages(data: AIRewriteRequest) -> list:
@@ -39,7 +41,7 @@ def _make_client():
     )
 
 
-# ── Streaming endpoint (preferred — feels near-instant) ───────────────────────
+# ── Streaming endpoint ────────────────────────────────────────────────────────
 
 @router.post("/rewrite-stream")
 @limiter.limit("30/minute")
@@ -48,19 +50,23 @@ async def rewrite_stream(request: Request, data: AIRewriteRequest, current_user:
         raise HTTPException(status_code=503, detail="AI service not configured.")
 
     messages = _build_messages(data)
+    model = data.model if data.model != "meta/llama-3.1-8b-instruct" else DEFAULT_MODEL
 
     def generate():
         try:
             client = _make_client()
             stream = client.chat.completions.create(
-                model=data.model,
+                model=model,
                 messages=messages,
-                max_tokens=1024,
+                max_tokens=512,
                 temperature=0.3,
                 stream=True,
             )
             for chunk in stream:
-                content = chunk.choices[0].delta.content or ""
+                # Some terminal chunks arrive with empty choices — guard against IndexError
+                if not chunk.choices:
+                    continue
+                content = chunk.choices[0].delta.content
                 if content:
                     yield content
         except Exception as exc:
@@ -78,12 +84,14 @@ async def rewrite_text(request: Request, data: AIRewriteRequest, current_user: d
         raise HTTPException(status_code=503, detail="AI service not configured.")
 
     messages = _build_messages(data)
+    model = data.model if data.model != "meta/llama-3.1-8b-instruct" else DEFAULT_MODEL
+
     try:
         client = _make_client()
         completion = client.chat.completions.create(
-            model=data.model,
+            model=model,
             messages=messages,
-            max_tokens=1024,
+            max_tokens=512,
             temperature=0.3,
         )
         return AIRewriteResponse(result=completion.choices[0].message.content.strip())

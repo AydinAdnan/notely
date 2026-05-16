@@ -121,7 +121,7 @@ class PublicLinkOut(BaseModel):
 class AIRewriteRequest(BaseModel):
     text: str = Field(..., max_length=20_000)
     mode: str = Field(..., max_length=50)
-    model: str = Field("meta/llama-3.1-8b-instruct", max_length=100)
+    model: str = Field("meta/llama-3.2-3b-instruct", max_length=100)
 
     @field_validator("text")
     @classmethod

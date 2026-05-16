@@ -199,13 +199,13 @@ const useNotesStore = create((set, get) => ({
 
   // ── AI rewrite ────────────────────────────────────────────────────────────
 
-  rewriteText: async (text, mode, model = 'meta/llama-3.1-8b-instruct') => {
+  rewriteText: async (text, mode, model = 'meta/llama-3.2-3b-instruct') => {
     const res = await api.post('/ai/rewrite', { text, mode, model });
     return res.data.result;
   },
 
   // Streaming version — calls onChunk(partialText) as tokens arrive
-  rewriteTextStream: async (text, mode, onChunk, model = 'meta/llama-3.1-8b-instruct') => {
+  rewriteTextStream: async (text, mode, onChunk, model = 'meta/llama-3.2-3b-instruct') => {
     const token = localStorage.getItem('token');
     const res = await fetch(`${BASE_URL}/ai/rewrite-stream`, {
       method: 'POST',
