@@ -7,6 +7,7 @@ const randomColor = () => COLORS[Math.floor(Math.random() * COLORS.length)];
 function normalize(n) {
   return {
     id: n.id,
+    userId: n.user_id || null,
     title: n.title,
     content: n.content,
     color: n.color,

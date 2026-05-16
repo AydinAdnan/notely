@@ -2,9 +2,10 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import useNotesStore from '../store/notesStore';
+import useAuthStore from '../store/authStore';
 import {
   Bold, Italic, List, ListOrdered, Quote, Code,
-  Heading1, Heading2, Wand2, X, Loader2, Check, Strikethrough,
+  Heading1, Heading2, Wand2, X, Loader2, Check, Strikethrough, Lock,
 } from 'lucide-react';
 
 // ── AI Right-Click Context Menu (streaming) ───────────────────────────────────
@@ -229,7 +230,9 @@ const AUTOSAVE_DELAY = 800;
 
 const Editor = () => {
   const { notes, activeNoteId, updateNote, isSaving } = useNotesStore();
+  const { user } = useAuthStore();
   const activeNote = notes.find((n) => n.id === activeNoteId);
+  const isReadOnly = !!(activeNote && user && activeNote.userId && activeNote.userId !== user.id);
   const [title, setTitle] = useState('');
   const [showAI, setShowAI] = useState(false);
   const [saved, setSaved] = useState(true);
@@ -276,10 +279,16 @@ const Editor = () => {
   const editor = useEditor({
     extensions: [StarterKit],
     content: '',
+    editable: !isReadOnly,
     onUpdate: ({ editor }) => {
-      if (activeNoteId) debouncedSave(activeNoteId, { content: editor.getHTML() });
+      if (activeNoteId && !isReadOnly) debouncedSave(activeNoteId, { content: editor.getHTML() });
     },
   });
+
+  // Sync editable state whenever the active note changes
+  useEffect(() => {
+    if (editor) editor.setEditable(!isReadOnly);
+  }, [editor, isReadOnly]);
 
   // Flush save when switching notes
   useEffect(() => {
@@ -317,6 +326,7 @@ const Editor = () => {
   useEffect(() => () => clearTimeout(saveTimer.current), []);
 
   const handleTitleChange = (e) => {
+    if (isReadOnly) return;
     setTitle(e.target.value);
     if (activeNoteId) debouncedSave(activeNoteId, { title: e.target.value });
   };
@@ -329,9 +339,9 @@ const Editor = () => {
     });
   };
 
-  // Right-click context menu — only when text selected
+  // Right-click context menu — only when text selected and note is editable
   const handleContextMenu = (e) => {
-    if (!editor) return;
+    if (!editor || isReadOnly) return;
     const { from, to } = editor.state.selection;
     if (from === to) return;
     e.preventDefault();
@@ -363,7 +373,14 @@ const Editor = () => {
 
       {/* Sticky toolbar */}
       <div className="shrink-0 border-b border-gray-100 bg-white px-4 sm:px-8 py-2">
-        <MenuBar editor={editor} onAIClick={() => setShowAI(true)} fontSize={fontSize} onFontSizeChange={handleFontSizeChange} />
+        {isReadOnly ? (
+          <div className="flex items-center gap-2 py-1">
+            <Lock size={13} className="text-gray-400 shrink-0" />
+            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Read only · Shared with you</span>
+          </div>
+        ) : (
+          <MenuBar editor={editor} onAIClick={() => setShowAI(true)} fontSize={fontSize} onFontSizeChange={handleFontSizeChange} />
+        )}
       </div>
 
       {/* Scrollable content */}
@@ -373,8 +390,9 @@ const Editor = () => {
             type="text"
             value={title}
             onChange={handleTitleChange}
+            readOnly={isReadOnly}
             placeholder="Untitled"
-            className="text-4xl sm:text-5xl font-display font-bold w-full outline-none bg-transparent placeholder-gray-200 leading-tight mb-1"
+            className={`text-4xl sm:text-5xl font-display font-bold w-full outline-none bg-transparent placeholder-gray-200 leading-tight mb-1 ${isReadOnly ? 'cursor-default select-text' : ''}`}
           />
           <div className="flex items-center gap-3 mb-8 mt-3">
             <div className="flex-1 h-px bg-gray-100" />
@@ -384,7 +402,7 @@ const Editor = () => {
                 : ''}
             </span>
           </div>
-          <div style={{ fontSize: `${fontSize}px` }}>
+          <div style={{ fontSize: `${fontSize}px` }} className={isReadOnly ? 'cursor-default' : ''}>
             <EditorContent editor={editor} />
           </div>
         </div>
@@ -396,7 +414,9 @@ const Editor = () => {
           {wordCount} {wordCount === 1 ? 'word' : 'words'} · {charCount} characters
         </span>
         <span className="text-xs flex items-center gap-1.5 font-medium">
-          {isSaving ? (
+          {isReadOnly ? (
+            <><Lock size={11} className="text-gray-400" /><span className="text-gray-400">Read only</span></>
+          ) : isSaving ? (
             <><Loader2 size={11} className="animate-spin text-gray-400" /><span className="text-gray-400">Saving…</span></>
           ) : saved ? (
             <><Check size={11} className="text-green-500" /><span className="text-gray-400">Saved</span></>
