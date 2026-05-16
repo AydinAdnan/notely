@@ -75,7 +75,8 @@ def get_note(note_id: str, current_user: dict = Depends(get_current_user)):
 
 @router.put("/{note_id}", response_model=NoteOut)
 def update_note(note_id: str, data: NoteUpdate, current_user: dict = Depends(get_current_user)):
-    current = supabase.table("notes").select("*").eq("id", note_id).eq("user_id", current_user["id"]).limit(1).execute()
+    # Fetch with public link in one go — used for snapshot + building response (no re-fetch needed)
+    current = supabase.table("notes").select("*, note_public_links(token)").eq("id", note_id).eq("user_id", current_user["id"]).limit(1).execute()
     if not current.data:
         raise HTTPException(status_code=404, detail="Note not found")
     note = current.data[0]
@@ -94,12 +95,12 @@ def update_note(note_id: str, data: NoteUpdate, current_user: dict = Depends(get
         for v in (old.data or []):
             supabase.table("note_versions").delete().eq("id", v["id"]).execute()
 
-    updates["updated_at"] = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(timezone.utc).isoformat()
+    updates["updated_at"] = now
     supabase.table("notes").update(updates).eq("id", note_id).eq("user_id", current_user["id"]).execute()
 
-    # Re-fetch with public link
-    updated = supabase.table("notes").select("*, note_public_links(token)").eq("id", note_id).limit(1).execute()
-    return _serialize(updated.data[0])
+    # Build response by merging updates into existing data — avoids a third round-trip
+    return _serialize({**note, **updates})
 
 
 @router.delete("/{note_id}", status_code=204)

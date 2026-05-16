@@ -22,6 +22,8 @@ def share_note(note_id: str, data: ShareRequest, current_user: dict = Depends(ge
         raise HTTPException(status_code=404, detail="No user found with that email")
     target_id = target.data[0]["id"]
 
+    # Unique constraint (note_id, shared_with_user_id) handles duplicate prevention at DB level,
+    # but we return a friendly error rather than letting the DB raise.
     existing = supabase.table("note_shares").select("id").eq("note_id", note_id).eq("shared_with_user_id", target_id).limit(1).execute()
     if existing.data:
         raise HTTPException(status_code=400, detail="Note already shared with this user")
@@ -44,15 +46,19 @@ def revoke_share(note_id: str, user_id: str, current_user: dict = Depends(get_cu
 
 @router.get("/shared-with-me")
 def get_shared_with_me(current_user: dict = Depends(get_current_user)):
-    shares = supabase.table("note_shares").select("*").eq("shared_with_user_id", current_user["id"]).execute()
-    result = []
-    for s in (shares.data or []):
-        note_res = supabase.table("notes").select("*, note_public_links(token)").eq("id", s["note_id"]).limit(1).execute()
-        owner_res = supabase.table("users").select("id, email, name").eq("id", s["owner_id"]).limit(1).execute()
-        if not note_res.data:
+    # Single query — PostgREST joins note + owner in one HTTP call (was 2n+1 calls)
+    result = supabase.table("note_shares").select(
+        "id, note_id, created_at, "
+        "note:notes!note_id(id, title, content, color, is_pinned, user_id, created_at, updated_at, note_public_links(token)), "
+        "owner:users!owner_id(id, email, name)"
+    ).eq("shared_with_user_id", current_user["id"]).execute()
+
+    shares = []
+    for s in (result.data or []):
+        note = s.get("note")
+        if not note:
             continue
-        note = note_res.data[0]
-        result.append({
+        shares.append({
             "id": s["id"],
             "note_id": s["note_id"],
             "note": {
@@ -66,10 +72,10 @@ def get_shared_with_me(current_user: dict = Depends(get_current_user)):
                 "updated_at": note["updated_at"],
                 "public_token": extract_public_token(note.get("note_public_links")),
             },
-            "owner": owner_res.data[0] if owner_res.data else {},
+            "owner": s.get("owner") or {},
             "created_at": s["created_at"],
         })
-    return result
+    return shares
 
 
 @router.get("/notes/{note_id}/shares")
@@ -78,13 +84,16 @@ def get_note_shares(note_id: str, current_user: dict = Depends(get_current_user)
     if not note.data:
         raise HTTPException(status_code=404, detail="Note not found")
 
-    shares = supabase.table("note_shares").select("*").eq("note_id", note_id).execute()
-    result = []
-    for s in (shares.data or []):
-        user_res = supabase.table("users").select("id, email, name").eq("id", s["shared_with_user_id"]).limit(1).execute()
-        result.append({
+    # Single query — joins shared_with user inline (was n+1 calls)
+    result = supabase.table("note_shares").select(
+        "id, created_at, shared_with:users!shared_with_user_id(id, email, name)"
+    ).eq("note_id", note_id).execute()
+
+    return [
+        {
             "id": s["id"],
-            "shared_with": user_res.data[0] if user_res.data else {},
+            "shared_with": s.get("shared_with") or {},
             "created_at": s["created_at"],
-        })
-    return result
+        }
+        for s in (result.data or [])
+    ]

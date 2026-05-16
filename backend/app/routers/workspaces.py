@@ -53,16 +53,26 @@ def share_workspace(workspace_id: str, data: ShareRequest, current_user: dict = 
         raise HTTPException(status_code=404, detail="No user found with that email")
     target_id = target.data[0]["id"]
 
+    # Get all notes in the workspace
     notes = supabase.table("notes").select("id").eq("workspace_id", workspace_id).eq("user_id", current_user["id"]).execute()
-    shared_count = 0
-    for note in (notes.data or []):
-        existing = supabase.table("note_shares").select("id").eq("note_id", note["id"]).eq("shared_with_user_id", target_id).limit(1).execute()
-        if not existing.data:
-            supabase.table("note_shares").insert({
-                "note_id": note["id"],
-                "owner_id": current_user["id"],
-                "shared_with_user_id": target_id,
-            }).execute()
-            shared_count += 1
+    note_ids = [n["id"] for n in (notes.data or [])]
 
+    if not note_ids:
+        return {"message": f"No notes in this workspace to share"}
+
+    # Fetch already-shared note IDs in one query (was one query per note)
+    existing = supabase.table("note_shares").select("note_id").in_("note_id", note_ids).eq("shared_with_user_id", target_id).execute()
+    already_shared = {s["note_id"] for s in (existing.data or [])}
+
+    # Batch insert all new shares in a single query
+    inserts = [
+        {"note_id": nid, "owner_id": current_user["id"], "shared_with_user_id": target_id}
+        for nid in note_ids
+        if nid not in already_shared
+    ]
+
+    if inserts:
+        supabase.table("note_shares").insert(inserts).execute()
+
+    shared_count = len(inserts)
     return {"message": f"Shared {shared_count} note(s) with {data.email}"}
