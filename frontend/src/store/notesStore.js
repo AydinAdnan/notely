@@ -35,7 +35,8 @@ const useNotesStore = create((set, get) => ({
       const params = { page_size: 100 };
       if (workspaceId) params.workspace_id = workspaceId;
       const res = await api.get('/notes', { params });
-      set({ notes: res.data.notes.map(normalize), isLoading: false });
+      const list = Array.isArray(res.data) ? res.data : (res.data.notes || []);
+      set({ notes: list.map(normalize), isLoading: false });
     } catch {
       set({ isLoading: false, error: 'Failed to load notes. Check your connection.' });
     }

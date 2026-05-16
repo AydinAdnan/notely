@@ -1,5 +1,5 @@
 from __future__ import annotations
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 from typing import Optional, List
 from datetime import datetime
 import uuid
@@ -92,7 +92,17 @@ class NoteListOut(BaseModel):
 # ── Shares ────────────────────────────────────────────────────────────────────
 
 class ShareRequest(BaseModel):
-    email: EmailStr
+    # Accept both field names: "email" (frontend) and "share_with_email" (test spec)
+    email: Optional[EmailStr] = None
+    share_with_email: Optional[EmailStr] = None
+
+    @model_validator(mode="after")
+    def resolve_email(self) -> "ShareRequest":
+        resolved = self.email or self.share_with_email
+        if not resolved:
+            raise ValueError("email or share_with_email is required")
+        self.email = resolved
+        return self
 
 
 # ── Public links ──────────────────────────────────────────────────────────────

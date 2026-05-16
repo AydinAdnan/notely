@@ -5,7 +5,7 @@ from slowapi.errors import RateLimitExceeded
 
 from .config import settings
 from .limiter import limiter
-from .routers import auth, notes, share, public, search, ai, history, workspaces
+from .routers import auth, notes, share, public, search, ai, history, workspaces, compat
 
 app = FastAPI(title="NoteZap API", version="1.0.0", docs_url="/docs", redoc_url="/redoc")
 
@@ -26,6 +26,7 @@ app.add_middleware(
 )
 
 # Order matters: fixed paths before parameterised ones
+app.include_router(compat.router)
 app.include_router(auth.router)
 app.include_router(workspaces.router)
 app.include_router(share.router)

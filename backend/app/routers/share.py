@@ -8,7 +8,7 @@ from ..utils import extract_public_token
 router = APIRouter(tags=["share"])
 
 
-@router.post("/notes/{note_id}/share", status_code=201)
+@router.post("/notes/{note_id}/share", status_code=200)
 def share_note(note_id: str, data: ShareRequest, current_user: dict = Depends(get_current_user)):
     note = supabase.table("notes").select("id").eq("id", note_id).eq("user_id", current_user["id"]).limit(1).execute()
     if not note.data:

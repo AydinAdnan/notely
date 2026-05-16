@@ -1,10 +1,10 @@
 import random
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from ..supabase_client import supabase
-from ..schemas.schemas import NoteCreate, NoteUpdate, NoteOut, NoteListOut
+from ..schemas.schemas import NoteCreate, NoteUpdate, NoteOut
 from ..deps import get_current_user
 from ..utils import extract_public_token
 
@@ -46,10 +46,10 @@ def create_note(data: NoteCreate, current_user: dict = Depends(get_current_user)
     return _serialize(note)
 
 
-@router.get("", response_model=NoteListOut)
+@router.get("", response_model=List[NoteOut])
 def list_notes(
     page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=100),
+    page_size: int = Query(100, ge=1, le=200),
     workspace_id: Optional[str] = Query(None),
     current_user: dict = Depends(get_current_user),
 ):
@@ -58,24 +58,30 @@ def list_notes(
     if workspace_id:
         q = q.eq("workspace_id", workspace_id)
     result = q.order("is_pinned", desc=True).order("updated_at", desc=True).range(offset, offset + page_size - 1).execute()
-    count_q = supabase.table("notes").select("id", count="exact").eq("user_id", current_user["id"])
-    if workspace_id:
-        count_q = count_q.eq("workspace_id", workspace_id)
-    total = (count_q.execute().count or 0)
-    return NoteListOut(notes=[_serialize(n) for n in result.data], total=total, page=page, page_size=page_size)
+    return [_serialize(n) for n in result.data]
 
 
 @router.get("/{note_id}", response_model=NoteOut)
 def get_note(note_id: str, current_user: dict = Depends(get_current_user)):
+    # Check ownership first
     result = supabase.table("notes").select("*, note_public_links(token)").eq("id", note_id).eq("user_id", current_user["id"]).limit(1).execute()
-    if not result.data:
+    if result.data:
+        return _serialize(result.data[0])
+
+    # Fall back to shared-with-me access
+    share = supabase.table("note_shares").select("note_id").eq("note_id", note_id).eq("shared_with_user_id", current_user["id"]).limit(1).execute()
+    if not share.data:
         raise HTTPException(status_code=404, detail="Note not found")
-    return _serialize(result.data[0])
+
+    note_res = supabase.table("notes").select("*, note_public_links(token)").eq("id", note_id).limit(1).execute()
+    if not note_res.data:
+        raise HTTPException(status_code=404, detail="Note not found")
+    return _serialize(note_res.data[0])
 
 
 @router.put("/{note_id}", response_model=NoteOut)
 def update_note(note_id: str, data: NoteUpdate, current_user: dict = Depends(get_current_user)):
-    # Fetch with public link in one go — used for snapshot + building response (no re-fetch needed)
+    # Fetch with public link — used for snapshot + building response without re-fetch
     current = supabase.table("notes").select("*, note_public_links(token)").eq("id", note_id).eq("user_id", current_user["id"]).limit(1).execute()
     if not current.data:
         raise HTTPException(status_code=404, detail="Note not found")
@@ -90,7 +96,6 @@ def update_note(note_id: str, data: NoteUpdate, current_user: dict = Depends(get
             "title": note["title"],
             "content": note["content"],
         }).execute()
-        # Prune old versions beyond limit
         old = supabase.table("note_versions").select("id").eq("note_id", note_id).order("created_at", desc=True).range(MAX_VERSIONS, MAX_VERSIONS + 999).execute()
         for v in (old.data or []):
             supabase.table("note_versions").delete().eq("id", v["id"]).execute()
@@ -99,7 +104,6 @@ def update_note(note_id: str, data: NoteUpdate, current_user: dict = Depends(get
     updates["updated_at"] = now
     supabase.table("notes").update(updates).eq("id", note_id).eq("user_id", current_user["id"]).execute()
 
-    # Build response by merging updates into existing data — avoids a third round-trip
     return _serialize({**note, **updates})
 
 
