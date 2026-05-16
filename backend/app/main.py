@@ -14,13 +14,15 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        settings.FRONTEND_URL,
-        "http://localhost:5173",
-        "http://localhost:4173",
-        "http://localhost:3000",
-    ],
-    allow_credentials=True,
+    # allow_origins=[
+    #     settings.FRONTEND_URL,
+    #     "http://localhost:5173",
+    #     "http://localhost:4173",
+    #     "http://localhost:3000",
+    # ],
+    allow_origins=["*"], #only for assignment purpose
+    # allow_credentials=True,
+    allow_credentials=False, #only for assignment purpose
     allow_methods=["*"],
     allow_headers=["*"],
 )
