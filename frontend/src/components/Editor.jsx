@@ -293,6 +293,15 @@ const Editor = () => {
     return () => window.removeEventListener('keydown', h);
   }, [flushSave]);
 
+  // Warn before closing tab/window if there are unsaved changes
+  useEffect(() => {
+    const h = (e) => {
+      if (!saved) { e.preventDefault(); e.returnValue = ''; }
+    };
+    window.addEventListener('beforeunload', h);
+    return () => window.removeEventListener('beforeunload', h);
+  }, [saved]);
+
   // Load note
   useEffect(() => {
     if (activeNote && editor) {

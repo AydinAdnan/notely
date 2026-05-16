@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from ..supabase_client import supabase
 from ..schemas.schemas import ShareRequest
 from ..deps import get_current_user
+from ..utils import extract_public_token
 
 router = APIRouter(tags=["share"])
 
@@ -51,7 +52,6 @@ def get_shared_with_me(current_user: dict = Depends(get_current_user)):
         if not note_res.data:
             continue
         note = note_res.data[0]
-        links = note.get("note_public_links") or []
         result.append({
             "id": s["id"],
             "note_id": s["note_id"],
@@ -64,7 +64,7 @@ def get_shared_with_me(current_user: dict = Depends(get_current_user)):
                 "user_id": note["user_id"],
                 "created_at": note["created_at"],
                 "updated_at": note["updated_at"],
-                "public_token": links[0]["token"] if links else None,
+                "public_token": extract_public_token(note.get("note_public_links")),
             },
             "owner": owner_res.data[0] if owner_res.data else {},
             "created_at": s["created_at"],

@@ -1,7 +1,7 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import useNotesStore from '../store/notesStore';
 import useWorkspacesStore from '../store/workspacesStore';
-import { Pin, Trash2, Plus, Users, Globe, Eye } from 'lucide-react';
+import { Pin, Trash2, Plus, Users, Globe, Eye, Loader2 } from 'lucide-react';
 import clsx from 'clsx';
 
 const formatDate = (iso) =>
@@ -92,9 +92,20 @@ const SharedCard = ({ item, index }) => {
 };
 
 const StickyNotesGrid = () => {
-  const { notes, sharedWithMe, currentView, setActiveNote, deleteNote, togglePin, addNote, isLoading } = useNotesStore();
+  const { notes, sharedWithMe, currentView, setActiveNote, deleteNote, togglePin, addNote, isLoading, error } = useNotesStore();
   const { workspaces, activeWorkspaceId } = useWorkspacesStore();
   const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId);
+  const [isCreating, setIsCreating] = useState(false);
+
+  const handleAddNote = async () => {
+    if (isCreating) return;
+    setIsCreating(true);
+    try {
+      await addNote(currentView === 'workspace' ? activeWorkspaceId : null);
+    } finally {
+      setIsCreating(false);
+    }
+  };
 
   const publicNotes = notes.filter((n) => n.publicToken);
   const recentNotes = [...notes].sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)).slice(0, 10);
@@ -120,6 +131,11 @@ const StickyNotesGrid = () => {
           </h2>
         </div>
 
+        {error && (
+          <div className="mb-6 bg-red-50 border-2 border-red-400 p-4 flex items-center justify-between">
+            <p className="font-bold text-red-700 text-sm">{error}</p>
+          </div>
+        )}
         {isLoading ? (
           <div className="flex items-center justify-center py-24">
             <div className="bg-neu-yellow border-neu border-neu-black p-6 shadow-neu rotate-[-1deg]">
@@ -133,13 +149,18 @@ const StickyNotesGrid = () => {
             {(currentView === 'all' || currentView === 'workspace') && (
               <>
                 <div
-                  onClick={() => addNote(currentView === 'workspace' ? activeWorkspaceId : null)}
-                  className="p-6 border-neu-thick border-dashed border-neu-black/30 bg-neu-black/5 hover:bg-neu-yellow/20 hover:border-neu-black hover:border-solid cursor-pointer transition-all flex flex-col items-center justify-center min-h-[250px] shadow-none hover:shadow-neu"
+                  onClick={handleAddNote}
+                  className={clsx(
+                    'p-6 border-neu-thick border-dashed border-neu-black/30 bg-neu-black/5 transition-all flex flex-col items-center justify-center min-h-[250px] shadow-none',
+                    isCreating ? 'opacity-60 cursor-not-allowed' : 'hover:bg-neu-yellow/20 hover:border-neu-black hover:border-solid cursor-pointer hover:shadow-neu'
+                  )}
                 >
                   <div className="w-16 h-16 rounded-full bg-neu-white border-neu border-neu-black flex items-center justify-center mb-4 shadow-neu-sm">
-                    <Plus size={32} />
+                    {isCreating ? <Loader2 size={28} className="animate-spin" /> : <Plus size={32} />}
                   </div>
-                  <h3 className="font-display font-bold text-xl text-center">Create New Note</h3>
+                  <h3 className="font-display font-bold text-xl text-center">
+                    {isCreating ? 'Creating…' : 'Create New Note'}
+                  </h3>
                 </div>
                 {[...notes]
                   .sort((a, b) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0))

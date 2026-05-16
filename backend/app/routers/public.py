@@ -1,10 +1,11 @@
 import secrets
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from ..supabase_client import supabase
 from ..schemas.schemas import PublicLinkOut
 from ..deps import get_current_user
+from ..limiter import limiter
 
 router = APIRouter(tags=["public"])
 
@@ -21,7 +22,7 @@ def generate_public_link(note_id: str, current_user: dict = Depends(get_current_
 
     result = supabase.table("note_public_links").insert({
         "note_id": note_id,
-        "token": secrets.token_urlsafe(8),
+        "token": secrets.token_urlsafe(32),
     }).execute()
     return result.data[0]
 
@@ -35,7 +36,11 @@ def delete_public_link(note_id: str, current_user: dict = Depends(get_current_us
 
 
 @router.get("/share/{token}")
-def get_public_note(token: str):
+@limiter.limit("60/minute")
+def get_public_note(request: Request, token: str):
+    if len(token) > 100:
+        raise HTTPException(status_code=400, detail="Invalid token")
+
     result = supabase.table("note_public_links").select("*").eq("token", token).limit(1).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Note not found or link is invalid")

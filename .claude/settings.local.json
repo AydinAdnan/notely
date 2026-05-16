@@ -4,7 +4,10 @@
       "Bash(Get-ChildItem -Path \"D:\\\\NotesApp\\\\frontend\" -Recurse -Force)",
       "Bash(Select-Object FullName)",
       "Bash(Sort-Object FullName)",
-      "mcp__mcp-server-supabase__list_tables"
+      "mcp__mcp-server-supabase__list_tables",
+      "Bash(python -c ' *)",
+      "mcp__mcp-server-supabase__list_projects",
+      "mcp__mcp-server-supabase__execute_sql"
     ]
   }
 }

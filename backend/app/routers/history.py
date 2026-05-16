@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from ..supabase_client import supabase
 from ..schemas.schemas import NoteVersionOut
 from ..deps import get_current_user
+from ..utils import extract_public_token
 
 router = APIRouter(tags=["history"])
 
@@ -40,7 +41,6 @@ def restore_version(note_id: str, version_id: str, current_user: dict = Depends(
 
     updated = supabase.table("notes").select("*, note_public_links(token)").eq("id", note_id).limit(1).execute()
     n = updated.data[0]
-    links = n.get("note_public_links") or []
     return {
         "id": n["id"],
         "user_id": n["user_id"],
@@ -50,5 +50,6 @@ def restore_version(note_id: str, version_id: str, current_user: dict = Depends(
         "is_pinned": n["is_pinned"],
         "created_at": n["created_at"],
         "updated_at": n["updated_at"],
-        "public_token": links[0]["token"] if links else None,
+        "public_token": extract_public_token(n.get("note_public_links")),
+        "workspace_id": n.get("workspace_id"),
     }

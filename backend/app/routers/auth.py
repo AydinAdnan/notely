@@ -1,11 +1,12 @@
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from jose import jwt
 from passlib.context import CryptContext
 
 from ..config import settings
 from ..deps import get_current_user
+from ..limiter import limiter
 from ..schemas.schemas import Token, UserLogin, UserOut, UserRegister, UserUpdate
 from ..supabase_client import supabase
 
@@ -33,7 +34,8 @@ def _user_out(u: dict) -> UserOut:
 
 
 @router.post("/register", response_model=Token, status_code=201)
-def register(data: UserRegister):
+@limiter.limit("10/minute")
+def register(request: Request, data: UserRegister):
     existing = (
         supabase.table("users").select("id").eq("email", data.email).limit(1).execute()
     )
@@ -58,7 +60,8 @@ def register(data: UserRegister):
 
 
 @router.post("/login", response_model=Token)
-def login(data: UserLogin):
+@limiter.limit("20/minute")
+def login(request: Request, data: UserLogin):
     result = (
         supabase.table("users").select("*").eq("email", data.email).limit(1).execute()
     )

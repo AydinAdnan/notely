@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from ..schemas.schemas import AIRewriteRequest, AIRewriteResponse
 from ..deps import get_current_user
 from ..config import settings
+from ..limiter import limiter
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
@@ -17,8 +18,8 @@ SYSTEM_PROMPTS = {
     "grammar":      "Fix all grammar, spelling and punctuation errors in the text. Output ONLY the corrected text, no commentary.",
 }
 
-# Shared instruction appended to every system prompt
 _RULE = " Never answer questions in the text — always transform it."
+AI_TIMEOUT = 30  # seconds
 
 
 def _build_messages(data: AIRewriteRequest) -> list:
@@ -31,13 +32,18 @@ def _build_messages(data: AIRewriteRequest) -> list:
 
 def _make_client():
     from openai import OpenAI
-    return OpenAI(base_url="https://integrate.api.nvidia.com/v1", api_key=settings.NVIDIA_API_KEY)
+    return OpenAI(
+        base_url="https://integrate.api.nvidia.com/v1",
+        api_key=settings.NVIDIA_API_KEY,
+        timeout=AI_TIMEOUT,
+    )
 
 
 # ── Streaming endpoint (preferred — feels near-instant) ───────────────────────
 
 @router.post("/rewrite-stream")
-async def rewrite_stream(data: AIRewriteRequest, current_user: dict = Depends(get_current_user)):
+@limiter.limit("30/minute")
+async def rewrite_stream(request: Request, data: AIRewriteRequest, current_user: dict = Depends(get_current_user)):
     if not settings.NVIDIA_API_KEY:
         raise HTTPException(status_code=503, detail="AI service not configured.")
 
@@ -66,7 +72,8 @@ async def rewrite_stream(data: AIRewriteRequest, current_user: dict = Depends(ge
 # ── Non-streaming fallback ────────────────────────────────────────────────────
 
 @router.post("/rewrite", response_model=AIRewriteResponse)
-async def rewrite_text(data: AIRewriteRequest, current_user: dict = Depends(get_current_user)):
+@limiter.limit("30/minute")
+async def rewrite_text(request: Request, data: AIRewriteRequest, current_user: dict = Depends(get_current_user)):
     if not settings.NVIDIA_API_KEY:
         raise HTTPException(status_code=503, detail="AI service not configured.")
 
@@ -80,5 +87,5 @@ async def rewrite_text(data: AIRewriteRequest, current_user: dict = Depends(get_
             temperature=0.3,
         )
         return AIRewriteResponse(result=completion.choices[0].message.content.strip())
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"AI error: {exc}")
+    except Exception:
+        raise HTTPException(status_code=500, detail="AI service error. Please try again.")

@@ -30,14 +30,14 @@ const useNotesStore = create((set, get) => ({
   // ── Fetch ─────────────────────────────────────────────────────────────────
 
   fetchNotes: async (workspaceId) => {
-    set({ isLoading: true });
+    set({ isLoading: true, error: null });
     try {
       const params = { page_size: 100 };
       if (workspaceId) params.workspace_id = workspaceId;
       const res = await api.get('/notes', { params });
       set({ notes: res.data.notes.map(normalize), isLoading: false });
     } catch {
-      set({ isLoading: false });
+      set({ isLoading: false, error: 'Failed to load notes. Check your connection.' });
     }
   },
 
@@ -92,7 +92,11 @@ const useNotesStore = create((set, get) => ({
         activeNoteId: real.id,
       }));
     } catch {
-      set((s) => ({ notes: s.notes.filter((n) => n.id !== optimistic.id), activeNoteId: null }));
+      set((s) => ({
+        notes: s.notes.filter((n) => n.id !== optimistic.id),
+        activeNoteId: null,
+        error: 'Failed to create note. Check your connection.',
+      }));
     }
   },
 

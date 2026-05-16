@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from ..supabase_client import supabase
 from ..schemas.schemas import NoteCreate, NoteUpdate, NoteOut, NoteListOut
 from ..deps import get_current_user
+from ..utils import extract_public_token
 
 router = APIRouter(prefix="/notes", tags=["notes"])
 
@@ -14,8 +15,6 @@ MAX_VERSIONS = 50
 
 
 def _serialize(n: dict) -> dict:
-    links = n.get("note_public_links") or []
-    token = (links[0]["token"] if isinstance(links, list) and links else None)
     return {
         "id": n["id"],
         "user_id": n["user_id"],
@@ -25,7 +24,7 @@ def _serialize(n: dict) -> dict:
         "is_pinned": n["is_pinned"],
         "created_at": n["created_at"],
         "updated_at": n["updated_at"],
-        "public_token": token,
+        "public_token": extract_public_token(n.get("note_public_links")),
         "workspace_id": n.get("workspace_id"),
     }
 
@@ -43,7 +42,7 @@ def create_note(data: NoteCreate, current_user: dict = Depends(get_current_user)
         insert_data["workspace_id"] = data.workspace_id
     result = supabase.table("notes").insert(insert_data).execute()
     note = result.data[0]
-    note["note_public_links"] = []
+    note["note_public_links"] = None
     return _serialize(note)
 
 
@@ -96,7 +95,7 @@ def update_note(note_id: str, data: NoteUpdate, current_user: dict = Depends(get
             supabase.table("note_versions").delete().eq("id", v["id"]).execute()
 
     updates["updated_at"] = datetime.now(timezone.utc).isoformat()
-    result = supabase.table("notes").update(updates).eq("id", note_id).eq("user_id", current_user["id"]).execute()
+    supabase.table("notes").update(updates).eq("id", note_id).eq("user_id", current_user["id"]).execute()
 
     # Re-fetch with public link
     updated = supabase.table("notes").select("*, note_public_links(token)").eq("id", note_id).limit(1).execute()

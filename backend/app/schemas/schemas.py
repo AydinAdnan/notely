@@ -1,5 +1,5 @@
 from __future__ import annotations
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from typing import Optional, List
 from datetime import datetime
 import uuid
@@ -8,10 +8,10 @@ import uuid
 # ── Workspaces ────────────────────────────────────────────────────────────────
 
 class WorkspaceCreate(BaseModel):
-    name: str
+    name: str = Field(..., min_length=1, max_length=100)
 
 class WorkspaceUpdate(BaseModel):
-    name: Optional[str] = None
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
 
 class WorkspaceOut(BaseModel):
     id: uuid.UUID
@@ -24,13 +24,13 @@ class WorkspaceOut(BaseModel):
 
 class UserRegister(BaseModel):
     email: EmailStr
-    password: str
-    name: str = ""
+    password: str = Field(..., min_length=8, max_length=128)
+    name: str = Field("", max_length=100)
 
 
 class UserLogin(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(..., min_length=1, max_length=128)
 
 
 class UserOut(BaseModel):
@@ -48,23 +48,23 @@ class Token(BaseModel):
 
 
 class UserUpdate(BaseModel):
-    name: Optional[str] = None
-    bio: Optional[str] = None
+    name: Optional[str] = Field(None, max_length=100)
+    bio: Optional[str] = Field(None, max_length=500)
 
 
 # ── Notes ─────────────────────────────────────────────────────────────────────
 
 class NoteCreate(BaseModel):
-    title: str = "Untitled Note"
-    content: str = ""
+    title: str = Field("Untitled Note", max_length=500)
+    content: str = Field("", max_length=1_000_000)
     color: str = "bg-neu-yellow"
     is_pinned: bool = False
     workspace_id: Optional[str] = None
 
 
 class NoteUpdate(BaseModel):
-    title: Optional[str] = None
-    content: Optional[str] = None
+    title: Optional[str] = Field(None, max_length=500)
+    content: Optional[str] = Field(None, max_length=1_000_000)
     color: Optional[str] = None
     is_pinned: Optional[bool] = None
 
@@ -109,9 +109,16 @@ class PublicLinkOut(BaseModel):
 # ── AI rewrite ────────────────────────────────────────────────────────────────
 
 class AIRewriteRequest(BaseModel):
-    text: str
-    mode: str
-    model: str = "meta/llama-3.1-8b-instruct"
+    text: str = Field(..., max_length=20_000)
+    mode: str = Field(..., max_length=50)
+    model: str = Field("meta/llama-3.1-8b-instruct", max_length=100)
+
+    @field_validator("text")
+    @classmethod
+    def text_not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("text must not be blank")
+        return v
 
 
 class AIRewriteResponse(BaseModel):
