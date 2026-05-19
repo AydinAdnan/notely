@@ -17,13 +17,14 @@ const NoteCard = ({ note, index, onOpen, onDelete, onPin, readOnly = false }) =>
     <div
       onClick={() => onOpen(note.id)}
       className={clsx(
-        'p-6 border-neu border-neu-black shadow-neu cursor-pointer transition-transform hover:z-10 hover:scale-105 group flex flex-col min-h-[250px]',
+        'p-6 border-neu border-neu-black shadow-neu cursor-pointer transition-transform hover:z-10 hover:scale-105 group flex flex-col',
+        'h-[260px]',
         note.color || 'bg-neu-yellow',
         tilt
       )}
     >
-      <div className="flex justify-between items-start mb-4">
-        <h3 className="font-display font-bold text-2xl leading-tight pr-8">{note.title || 'Untitled Note'}</h3>
+      <div className="flex justify-between items-start mb-3 shrink-0">
+        <h3 className="font-display font-bold text-xl leading-tight pr-8 line-clamp-2">{note.title || 'Untitled Note'}</h3>
         {!readOnly && (
           <div className="flex gap-2 absolute right-4 opacity-0 group-hover:opacity-100 transition-opacity">
             <button
@@ -44,11 +45,11 @@ const NoteCard = ({ note, index, onOpen, onDelete, onPin, readOnly = false }) =>
         )}
       </div>
 
-      <p className="text-neu-black/80 font-medium mb-auto flex-1 overflow-hidden">
+      <p className="text-neu-black/80 font-medium flex-1 overflow-hidden line-clamp-4 text-sm">
         {(note.content || '').replace(/<[^>]+>/g, '') || 'Empty note...'}
       </p>
 
-      <div className="text-sm font-mono font-bold text-neu-black border-t-neu-thin border-neu-black/20 pt-3 mt-4 flex items-center justify-between">
+      <div className="text-sm font-mono font-bold text-neu-black border-t-neu-thin border-neu-black/20 pt-3 mt-3 shrink-0 flex items-center justify-between">
         <span>{formatDate(note.updatedAt || note.updated_at)}</span>
         <div className="flex items-center gap-2">
           {note.publicToken && <Globe size={12} className="text-neu-black/60" title="Public link active" />}
@@ -77,19 +78,20 @@ const SharedCard = ({ item, index }) => {
     <div
       onClick={handleOpen}
       className={clsx(
-        'p-6 border-neu border-neu-black shadow-neu cursor-pointer transition-transform hover:z-10 hover:scale-105 flex flex-col min-h-[250px]',
+        'p-6 border-neu border-neu-black shadow-neu cursor-pointer transition-transform hover:z-10 hover:scale-105 flex flex-col',
+        'h-[260px]',
         note.color || 'bg-neu-cyan',
         tilt
       )}
     >
-      <h3 className="font-display font-bold text-2xl leading-tight mb-2">{note.title || 'Untitled'}</h3>
-      <p className="text-xs font-bold text-neu-black/50 mb-3 flex items-center gap-1">
+      <h3 className="font-display font-bold text-xl leading-tight mb-1 shrink-0 line-clamp-2">{note.title || 'Untitled'}</h3>
+      <p className="text-xs font-bold text-neu-black/50 mb-2 shrink-0 flex items-center gap-1">
         <Users size={12} /> Shared by {item.owner?.name || item.owner?.email}
       </p>
-      <p className="text-neu-black/80 font-medium mb-auto flex-1 overflow-hidden">
+      <p className="text-neu-black/80 font-medium flex-1 overflow-hidden line-clamp-4 text-sm">
         {(note.content || '').replace(/<[^>]+>/g, '') || 'Empty note...'}
       </p>
-      <div className="text-sm font-mono font-bold text-neu-black border-t-neu-thin border-neu-black/20 pt-3 mt-4">
+      <div className="text-sm font-mono font-bold text-neu-black border-t-neu-thin border-neu-black/20 pt-3 mt-3 shrink-0">
         {formatDate(note.updated_at)}
       </div>
     </div>
@@ -156,7 +158,7 @@ const StickyNotesGrid = () => {
                 <div
                   onClick={handleAddNote}
                   className={clsx(
-                    'p-6 border-neu-thick border-dashed border-neu-black/30 bg-neu-black/5 transition-all flex flex-col items-center justify-center min-h-[250px] shadow-none',
+                    'p-6 border-neu-thick border-dashed border-neu-black/30 bg-neu-black/5 transition-all flex flex-col items-center justify-center h-[260px] shadow-none',
                     isCreating ? 'opacity-60 cursor-not-allowed' : 'hover:bg-neu-yellow/20 hover:border-neu-black hover:border-solid cursor-pointer hover:shadow-neu'
                   )}
                 >
