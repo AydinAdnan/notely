@@ -147,6 +147,11 @@ const Sidebar = ({ isMobileOpen, setMobileOpen }) => {
   const newInputRef = useRef(null);
 
   useEffect(() => {
+    // If prefetchDashboardData already populated workspaces, skip the redundant fetch.
+    // We still need to handle the "no workspaces yet" case for brand-new users.
+    const { workspaces: existing, isLoading } = useWorkspacesStore.getState();
+    if (existing.length > 0 || isLoading) return;
+
     fetchWorkspaces().then((list) => {
       if (list.length === 0) {
         createWorkspace('My Workspace').then((ws) => {

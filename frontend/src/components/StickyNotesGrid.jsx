@@ -4,6 +4,33 @@ import useWorkspacesStore from '../store/workspacesStore';
 import { Pin, Trash2, Plus, Users, Globe, Eye, Loader2 } from 'lucide-react';
 import clsx from 'clsx';
 
+// ── Skeleton Card ─────────────────────────────────────────────────────────────
+const tilts = ['rotate-[-2deg]', 'rotate-[2deg]', 'rotate-[-1deg]', 'rotate-[1deg]', 'rotate-0'];
+
+const SkeletonCard = ({ index }) => (
+  <div
+    className={clsx(
+      'p-6 border-neu border-neu-black h-[260px] flex flex-col overflow-hidden',
+      tilts[index % tilts.length]
+    )}
+  >
+    {/* Title bar */}
+    <div className="skeleton-shimmer h-6 w-3/4 rounded mb-3 shrink-0" />
+    {/* Content lines */}
+    <div className="flex-1 flex flex-col gap-2 mt-1">
+      <div className="skeleton-shimmer h-3.5 w-full rounded" />
+      <div className="skeleton-shimmer h-3.5 w-5/6 rounded" />
+      <div className="skeleton-shimmer h-3.5 w-4/6 rounded" />
+      <div className="skeleton-shimmer h-3.5 w-full rounded" />
+    </div>
+    {/* Footer */}
+    <div className="border-t border-black/10 pt-3 mt-3 shrink-0 flex items-center justify-between">
+      <div className="skeleton-shimmer h-3 w-24 rounded" />
+      <div className="skeleton-shimmer h-3 w-8 rounded" />
+    </div>
+  </div>
+);
+
 const formatDate = (iso) =>
   new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
@@ -144,10 +171,10 @@ const StickyNotesGrid = () => {
           </div>
         )}
         {isLoading ? (
-          <div className="flex items-center justify-center py-24">
-            <div className="bg-neu-yellow border-neu border-neu-black p-6 shadow-neu rotate-[-1deg]">
-              <p className="font-display font-bold text-lg">Loading notes…</p>
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-8">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <SkeletonCard key={i} index={i} />
+            ))}
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-8">
