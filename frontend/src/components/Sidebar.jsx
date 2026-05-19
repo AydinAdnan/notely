@@ -147,21 +147,22 @@ const Sidebar = ({ isMobileOpen, setMobileOpen }) => {
   const newInputRef = useRef(null);
 
   useEffect(() => {
-    // If prefetchDashboardData already populated workspaces, skip the redundant fetch.
-    // We still need to handle the "no workspaces yet" case for brand-new users.
-    const { workspaces: existing, isLoading } = useWorkspacesStore.getState();
-    if (existing.length > 0 || isLoading) return;
-
-    fetchWorkspaces().then((list) => {
+    // Fetch workspaces and ALL notes simultaneously — no serial waterfall.
+    // ALL notes (no workspace filter) is correct for the default 'all' view.
+    Promise.all([
+      fetchWorkspaces(),
+      fetchNotes(),          // no workspace_id → returns all notes
+      fetchSharedWithMe(),
+    ]).then(([list]) => {
+      // If brand-new user with zero workspaces, create a default one
       if (list.length === 0) {
         createWorkspace('My Workspace').then((ws) => {
           fetchNotes(ws.id);
         });
-      } else {
-        fetchNotes(list[0].id);
       }
     });
   }, []);
+
 
   useEffect(() => {
     if (isCreating && newInputRef.current) newInputRef.current.focus();
