@@ -4,6 +4,10 @@ import api, { BASE_URL } from '../lib/api';
 const COLORS = ['bg-neu-yellow', 'bg-neu-pink', 'bg-neu-cyan', 'bg-neu-green', 'bg-neu-purple'];
 const randomColor = () => COLORS[Math.floor(Math.random() * COLORS.length)];
 
+// Cache TTLs
+const NOTES_TTL = 60_000;  // 60 seconds
+const SHARED_TTL = 60_000; // 60 seconds
+
 function normalize(n) {
   return {
     id: n.id,
@@ -23,30 +27,53 @@ const useNotesStore = create((set, get) => ({
   notes: [],
   sharedWithMe: [],
   activeNoteId: null,
-  currentView: 'all', // 'all' | 'recent' | 'shared' | 'public'
+  currentView: 'all', // 'all' | 'recent' | 'shared' | 'public' | 'workspace'
   isLoading: false,
   isSaving: false,
   error: null,
 
+  // ── Cache ─────────────────────────────────────────────────────────────────
+  // _notesCache: { [cacheKey: string]: number (timestamp) }
+  // cacheKey = workspaceId ?? 'all'
+  _notesCache: {},
+  _sharedFetchedAt: null,
+
+  _invalidateNotesCache: () => set({ _notesCache: {}, _sharedFetchedAt: null }),
+
   // ── Fetch ─────────────────────────────────────────────────────────────────
 
   fetchNotes: async (workspaceId) => {
+    const cacheKey = workspaceId ?? 'all';
+    const lastFetch = get()._notesCache[cacheKey];
+
+    // Cache hit — data is fresh, skip the network call
+    if (lastFetch && Date.now() - lastFetch < NOTES_TTL) return;
+
     set({ isLoading: true, error: null });
     try {
       const params = { page_size: 100 };
       if (workspaceId) params.workspace_id = workspaceId;
       const res = await api.get('/notes', { params });
       const list = Array.isArray(res.data) ? res.data : (res.data.notes || []);
-      set({ notes: list.map(normalize), isLoading: false });
+      set((s) => ({
+        notes: list.map(normalize),
+        isLoading: false,
+        _notesCache: { ...s._notesCache, [cacheKey]: Date.now() },
+      }));
     } catch {
       set({ isLoading: false, error: 'Failed to load notes. Check your connection.' });
     }
   },
 
   fetchSharedWithMe: async () => {
+    const lastFetch = get()._sharedFetchedAt;
+
+    // Cache hit
+    if (lastFetch && Date.now() - lastFetch < SHARED_TTL) return;
+
     try {
       const res = await api.get('/shared-with-me');
-      set({ sharedWithMe: res.data });
+      set({ sharedWithMe: res.data, _sharedFetchedAt: Date.now() });
     } catch {}
   },
 
@@ -79,7 +106,8 @@ const useNotesStore = create((set, get) => ({
       publicToken: null,
       workspaceId: workspaceId || null,
     };
-    set((s) => ({ notes: [optimistic, ...s.notes], activeNoteId: optimistic.id }));
+    // Optimistic add + invalidate cache so next fetch is fresh
+    set((s) => ({ notes: [optimistic, ...s.notes], activeNoteId: optimistic.id, _notesCache: {} }));
     try {
       const body = {
         title: optimistic.title,
@@ -103,6 +131,7 @@ const useNotesStore = create((set, get) => ({
   },
 
   updateNote: async (id, updates) => {
+    // Optimistic update — no cache invalidation needed (local state stays accurate)
     set((s) => ({
       notes: s.notes.map((n) =>
         n.id === id ? { ...n, ...updates, updatedAt: new Date().toISOString() } : n
@@ -127,10 +156,12 @@ const useNotesStore = create((set, get) => ({
   },
 
   deleteNote: async (id) => {
+    // Optimistic delete + invalidate cache
     set((s) => {
       const remaining = s.notes.filter((n) => n.id !== id);
       return {
         notes: remaining,
+        _notesCache: {},
         activeNoteId:
           s.activeNoteId === id
             ? remaining.length > 0 ? remaining[0].id : null
@@ -194,6 +225,8 @@ const useNotesStore = create((set, get) => ({
     const updated = normalize(res.data);
     set((s) => ({
       notes: s.notes.map((n) => (n.id === noteId ? updated : n)),
+      // Invalidate so next fetch from any workspace key is fresh
+      _notesCache: {},
     }));
     return updated;
   },
